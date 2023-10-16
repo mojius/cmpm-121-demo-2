@@ -35,7 +35,8 @@ body {
 canvas{
   border-radius: 30px;
   border: 2px solid black;
-  filter: drop-shadow(rgb(116, 0, 0) 1rem 1rem 10px)
+  filter: drop-shadow(rgb(116, 0, 0) 1rem 1rem 10px);
+  margin: 10px;
 }
 
 h1 {
