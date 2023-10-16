@@ -66,6 +66,6 @@ cursor.active = false;
 
 // Clears the rendering context.
 clearButton.addEventListener("click", () => {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.clearRect(zero, zero, canvas.width, canvas.height);
     ctx.fillRect(zero, zero, canvasSize, canvasSize);
 });
