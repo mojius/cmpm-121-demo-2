@@ -38,14 +38,18 @@ const redoButton = document.createElement("button");
 redoButton.innerHTML = "redo";
 app.append(redoButton);
 
-interface MousePoints {
+interface MousePoint {
   x: number;
   y: number;
 }
 
 // Make an array of array of mouse points.
-const mousePointsArraySquared: MousePoints[][] = [];
-let undoRedoStack: MousePoints[][] = [];
+let mousePointsArraySquared: MousePoint[][] = [];
+let undoRedoStack: MousePoint[][] = [];
+
+canvas.addEventListener("drawing-changed", () => {
+  drawToCanvas();
+});
 
 // Cursor is pretty much just an arbitrary data structure to store mouse state data.
 const cursor = { active: false, x: 0, y: 0 };
@@ -57,21 +61,23 @@ canvas.addEventListener("mousedown", (e) => {
   cursor.y = e.offsetY;
 
   mousePointsArraySquared.push([]);
+  undoRedoStack = [];
   canvas.dispatchEvent(drawingChangedEvent);
 });
 
 canvas.addEventListener("mousemove", (e) => {
   if (cursor.active) {
+    const indexOffset = 1;
     cursor.x = e.offsetX;
     cursor.y = e.offsetY;
-    const mousePoint: MousePoints = { x: cursor.x, y: cursor.y };
+    const mousePoint: MousePoint = { x: cursor.x, y: cursor.y };
     // store the mouse point
-    mousePointsArraySquared[mousePointsArraySquared.length - 1].push(
+    mousePointsArraySquared[mousePointsArraySquared.length - indexOffset].push(
       mousePoint
     );
 
     // begin drawing process
-    dispatchEvent(drawingChangedEvent);
+    canvas.dispatchEvent(drawingChangedEvent);
   }
 });
 
@@ -79,66 +85,47 @@ function drawToCanvas() {
   ctx.clearRect(zero, zero, canvas.width, canvas.height);
   ctx.fillRect(zero, zero, canvas.width, canvas.height);
 
-  const one = 1;
-  console.log(mousePointsArraySquared);
+  if (!mousePointsArraySquared) return;
 
   // foreach set of points in the mouse array
-  for (let i = zero; i < mousePointsArraySquared.length; i++) {
-    for (let j = zero; j < mousePointsArraySquared[i].length; j++) {
-      if (j == zero) {
-        ctx.moveTo(
-          mousePointsArraySquared[i][j].x,
-          mousePointsArraySquared[i][j].y
-        );
-      } else if (j == mousePointsArraySquared[i].length - one) {
-        ctx.lineTo(
-          mousePointsArraySquared[i][j].x,
-          mousePointsArraySquared[i][j].y
-        );
-        ctx.stroke();
-      } else {
-        ctx.lineTo(
-          mousePointsArraySquared[i][j].x,
-          mousePointsArraySquared[i][j].y
-        );
-      }
+  for (const points of mousePointsArraySquared) {
+    ctx.beginPath();
+    const [first, ...rest]: MousePoint[] = points;
+    if (first) ctx.moveTo(first.x, first.y);
+    for (const { x, y } of rest) {
+      ctx.lineTo(x, y);
     }
+    ctx.stroke();
   }
-  // iterate through and draw them all
 }
 
 canvas.addEventListener("mouseup", () => {
   // resetting state
   cursor.active = false;
   // Update the stroke num in the list
-
-  console.log(mousePointsArraySquared);
-  canvas.dispatchEvent(drawingChangedEvent);
 });
 
 clearButton.addEventListener("click", () => {
-  ctx.clearRect(zero, zero, canvas.width, canvas.height);
-  ctx.fillRect(zero, zero, canvasSize, canvasSize);
   undoRedoStack = [];
-  mousePointsArraySquared.length = 0;
+  mousePointsArraySquared = [];
+  canvas.dispatchEvent(drawingChangedEvent);
 });
 
 undoButton.addEventListener("click", () => {
-  if (mousePointsArraySquared.length > zero) {
-    undoRedoStack.push(mousePointsArraySquared.pop()!);
+  if (mousePointsArraySquared.length) {
+    const poppedLine = mousePointsArraySquared.pop()!;
+    undoRedoStack.push(poppedLine);
     canvas.dispatchEvent(drawingChangedEvent);
-    console.log(mousePointsArraySquared);
   }
 });
 
 redoButton.addEventListener("click", () => {
-  if (undoRedoStack.length > zero) {
-    mousePointsArraySquared.push(undoRedoStack.pop()!);
+  if (undoRedoStack.length) {
+    const pushedLine = undoRedoStack.pop()!;
+    mousePointsArraySquared.push(pushedLine);
     canvas.dispatchEvent(drawingChangedEvent);
-    console.log(mousePointsArraySquared);
   }
 });
 
-canvas.addEventListener("drawing-changed", () => {
-  drawToCanvas();
-});
+// Try to switch to single arrays of classes to mitigate shitty garbage collection?
+// Push and pop
