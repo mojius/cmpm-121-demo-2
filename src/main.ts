@@ -31,6 +31,7 @@ const thickThickness = 10;
 let masterThickness = mediumThickness;
 
 const drawingChangedEvent: Event = new Event("drawing-changed");
+const toolMovedEvent: Event = new Event("tool-moved");
 
 const clearButton = document.createElement("button");
 clearButton.innerHTML = "clear";
@@ -59,10 +60,14 @@ const thickButton = document.createElement("button");
 thickButton.innerHTML = "thick";
 divvy2.append(thickButton);
 
+const divvy3 = document.createElement("div");
+app.append(divvy3);
+
 class LineContainer {
   list: MarkerLine[] = [];
 
   displayAllLines() {
+    ctx.fillStyle = "white";
     ctx.clearRect(zero, zero, canvas.width, canvas.height);
     ctx.fillRect(zero, zero, canvas.width, canvas.height);
 
@@ -82,7 +87,6 @@ class MarkerLine {
     this.thickness = mediumThickness;
   }
 
-  // display takes care of all the drawing of the INDIVIDUAL line.
   display(ctx: CanvasRenderingContext2D) {
     ctx.lineWidth = this.thickness;
     ctx.beginPath();
@@ -108,18 +112,58 @@ class MarkerLine {
   }
 }
 
+class CursorData {
+  active: boolean;
+  thickness: number;
+  x: number;
+  y: number;
+
+  constructor() {
+    this.x = 0;
+    this.y = 0;
+    this.active = false;
+    this.thickness = mediumThickness;
+  }
+
+  display(ctx: CanvasRenderingContext2D) {
+    cursor.thickness = masterThickness;
+    const circleStart = 0;
+    const circleEnd = 360;
+    const reductionRatio = 2;
+    ctx.fillStyle = "black";
+    ctx.beginPath();
+    ctx.arc(
+      this.x,
+      this.y,
+      this.thickness / reductionRatio,
+      circleStart,
+      circleEnd
+    );
+    ctx.fill();
+  }
+}
+
 // Make an array of array of mouse points.
 const mouseLines = new LineContainer();
 const undoRedoStack = new LineContainer();
 
-let line: MarkerLine;
+const origin = 0;
+let line: MarkerLine = new MarkerLine(origin, origin);
+// Cursor is pretty much just an arbitrary data structure to store mouse state data.
+const cursor = new CursorData();
 
 canvas.addEventListener("drawing-changed", () => {
   mouseLines.displayAllLines();
 });
 
-// Cursor is pretty much just an arbitrary data structure to store mouse state data.
-const cursor = { active: false, x: 0, y: 0 };
+canvas.addEventListener("tool-moved", () => {
+  mouseLines.displayAllLines();
+  cursor.display(ctx);
+});
+
+canvas.addEventListener("mouseout", () => {
+  mouseLines.displayAllLines();
+});
 
 canvas.addEventListener("mousedown", (e) => {
   // Setting state and old position
@@ -134,19 +178,23 @@ canvas.addEventListener("mousedown", (e) => {
   mouseLines.list.push(line);
   undoRedoStack.list.length = 0;
 
+  canvas.dispatchEvent(toolMovedEvent);
+
   canvas.dispatchEvent(drawingChangedEvent);
 });
 
 canvas.addEventListener("mousemove", (e) => {
-  if (cursor.active) {
-    cursor.x = e.offsetX;
-    cursor.y = e.offsetY;
+  cursor.x = e.offsetX;
+  cursor.y = e.offsetY;
 
+  if (cursor.active) {
     line.drag(cursor.x, cursor.y);
 
     // begin drawing process
     canvas.dispatchEvent(drawingChangedEvent);
   }
+
+  canvas.dispatchEvent(toolMovedEvent);
 });
 
 canvas.addEventListener("mouseup", () => {
