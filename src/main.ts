@@ -24,6 +24,12 @@ divvy.append(canvas);
 ctx.fillStyle = "white";
 ctx.fillRect(zero, zero, canvasSize, canvasSize);
 
+const thinThickness = 1;
+const mediumThickness = 5;
+const thickThickness = 10;
+
+let masterThickness = mediumThickness;
+
 const drawingChangedEvent: Event = new Event("drawing-changed");
 
 const clearButton = document.createElement("button");
@@ -37,6 +43,21 @@ app.append(undoButton);
 const redoButton = document.createElement("button");
 redoButton.innerHTML = "redo";
 app.append(redoButton);
+
+const divvy2 = document.createElement("div");
+app.append(divvy2);
+
+const thinButton = document.createElement("button");
+thinButton.innerHTML = "thin";
+divvy2.append(thinButton);
+
+const mediumButton = document.createElement("button");
+mediumButton.innerHTML = "medium";
+divvy2.append(mediumButton);
+
+const thickButton = document.createElement("button");
+thickButton.innerHTML = "thick";
+divvy2.append(thickButton);
 
 class LineContainer {
   list: MarkerLine[] = [];
@@ -54,13 +75,16 @@ class LineContainer {
 // MarkerLine is our command class.
 class MarkerLine {
   lines: { x: number; y: number }[] = [];
+  thickness: number;
 
   constructor(x: number, y: number) {
     this.lines.push({ x, y });
+    this.thickness = mediumThickness;
   }
 
   // display takes care of all the drawing of the INDIVIDUAL line.
   display(ctx: CanvasRenderingContext2D) {
+    ctx.lineWidth = this.thickness;
     ctx.beginPath();
     const [first, ...rest]: {
       x: number;
@@ -77,6 +101,10 @@ class MarkerLine {
   drag(x: number, y: number) {
     this.lines.push({ x, y });
     canvas.dispatchEvent(drawingChangedEvent);
+  }
+
+  setThickness() {
+    this.thickness = masterThickness;
   }
 }
 
@@ -101,6 +129,7 @@ canvas.addEventListener("mousedown", (e) => {
   cursor.y = e.offsetY;
 
   line = new MarkerLine(cursor.x, cursor.y);
+  line.thickness = masterThickness;
 
   mouseLines.list.push(line);
   undoRedoStack.list.length = 0;
@@ -144,6 +173,24 @@ redoButton.addEventListener("click", () => {
     const pushedLine = undoRedoStack.list.pop()!;
     mouseLines.list.push(pushedLine);
     canvas.dispatchEvent(drawingChangedEvent);
+  }
+});
+
+thinButton.addEventListener("click", () => {
+  if (line) {
+    masterThickness = thinThickness;
+  }
+});
+
+mediumButton.addEventListener("click", () => {
+  if (line) {
+    masterThickness = mediumThickness;
+  }
+});
+
+thickButton.addEventListener("click", () => {
+  if (line) {
+    masterThickness = thickThickness;
   }
 });
 
