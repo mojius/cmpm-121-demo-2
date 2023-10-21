@@ -38,17 +38,56 @@ const redoButton = document.createElement("button");
 redoButton.innerHTML = "redo";
 app.append(redoButton);
 
-interface MousePoint {
-  x: number;
-  y: number;
+class LineContainer {
+  list: MarkerLine[] = [];
+
+  displayAllLines() {
+    ctx.clearRect(zero, zero, canvas.width, canvas.height);
+    ctx.fillRect(zero, zero, canvas.width, canvas.height);
+
+    for (const aLine of mouseLines.list) {
+      aLine.display(ctx);
+    }
+  }
+}
+
+// MarkerLine is our command class.
+class MarkerLine {
+  lines: { x: number; y: number }[] = [];
+
+  constructor(x: number, y: number) {
+    this.lines.push({ x, y });
+  }
+
+  // display takes care of all the drawing of the INDIVIDUAL line.
+  display(ctx: CanvasRenderingContext2D) {
+    ctx.beginPath();
+    const [first, ...rest]: {
+      x: number;
+      y: number;
+    }[] = this.lines;
+    if (first) ctx.moveTo(first.x, first.y);
+    for (const { x, y } of rest) {
+      ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+  }
+
+  // When drag is called, you push to your line and call a drawingChanged event.
+  drag(x: number, y: number) {
+    this.lines.push({ x, y });
+    canvas.dispatchEvent(drawingChangedEvent);
+  }
 }
 
 // Make an array of array of mouse points.
-let mousePointsArraySquared: MousePoint[][] = [];
-let undoRedoStack: MousePoint[][] = [];
+const mouseLines = new LineContainer();
+const undoRedoStack = new LineContainer();
+
+let line: MarkerLine;
 
 canvas.addEventListener("drawing-changed", () => {
-  drawToCanvas();
+  mouseLines.displayAllLines();
 });
 
 // Cursor is pretty much just an arbitrary data structure to store mouse state data.
@@ -57,75 +96,61 @@ const cursor = { active: false, x: 0, y: 0 };
 canvas.addEventListener("mousedown", (e) => {
   // Setting state and old position
   cursor.active = true;
+
   cursor.x = e.offsetX;
   cursor.y = e.offsetY;
 
-  mousePointsArraySquared.push([]);
-  undoRedoStack = [];
+  line = new MarkerLine(cursor.x, cursor.y);
+
+  mouseLines.list.push(line);
+  undoRedoStack.list.length = 0;
+
   canvas.dispatchEvent(drawingChangedEvent);
 });
 
 canvas.addEventListener("mousemove", (e) => {
   if (cursor.active) {
-    const indexOffset = 1;
     cursor.x = e.offsetX;
     cursor.y = e.offsetY;
-    const mousePoint: MousePoint = { x: cursor.x, y: cursor.y };
-    // store the mouse point
-    mousePointsArraySquared[mousePointsArraySquared.length - indexOffset].push(
-      mousePoint
-    );
+
+    line.drag(cursor.x, cursor.y);
 
     // begin drawing process
     canvas.dispatchEvent(drawingChangedEvent);
   }
 });
 
-function drawToCanvas() {
-  ctx.clearRect(zero, zero, canvas.width, canvas.height);
-  ctx.fillRect(zero, zero, canvas.width, canvas.height);
-
-  if (!mousePointsArraySquared) return;
-
-  // foreach set of points in the mouse array
-  for (const points of mousePointsArraySquared) {
-    ctx.beginPath();
-    const [first, ...rest]: MousePoint[] = points;
-    if (first) ctx.moveTo(first.x, first.y);
-    for (const { x, y } of rest) {
-      ctx.lineTo(x, y);
-    }
-    ctx.stroke();
-  }
-}
-
 canvas.addEventListener("mouseup", () => {
   // resetting state
   cursor.active = false;
-  // Update the stroke num in the list
 });
 
 clearButton.addEventListener("click", () => {
-  undoRedoStack = [];
-  mousePointsArraySquared = [];
+  mouseLines.list.length = 0;
+  undoRedoStack.list.length = 0;
   canvas.dispatchEvent(drawingChangedEvent);
 });
 
 undoButton.addEventListener("click", () => {
-  if (mousePointsArraySquared.length) {
-    const poppedLine = mousePointsArraySquared.pop()!;
-    undoRedoStack.push(poppedLine);
+  if (mouseLines.list.length) {
+    const poppedLine = mouseLines.list.pop();
+    undoRedoStack.list.push(poppedLine!);
     canvas.dispatchEvent(drawingChangedEvent);
   }
 });
 
 redoButton.addEventListener("click", () => {
-  if (undoRedoStack.length) {
-    const pushedLine = undoRedoStack.pop()!;
-    mousePointsArraySquared.push(pushedLine);
+  if (undoRedoStack.list.length) {
+    const pushedLine = undoRedoStack.list.pop()!;
+    mouseLines.list.push(pushedLine);
     canvas.dispatchEvent(drawingChangedEvent);
   }
 });
 
 // Try to switch to single arrays of classes to mitigate shitty garbage collection?
 // Push and pop
+
+// Your dispatchEvent (drawing changed) should just be a function now going through all of the lines.
+// You can have a line container for your regular lines, and a line container for your undoRedoStack.
+
+// Inside each line
