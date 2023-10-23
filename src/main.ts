@@ -52,7 +52,8 @@ const buttonList: Button[] = [
   { name: "fireButton", desc: "🔥", func: () => setBrush("🔥"), div: divvy3 },
   { name: "starButton", desc: "⭐", func: () => setBrush("⭐"), div: divvy3 },
   { name: "zapButton", desc: "⚡", func: () => setBrush("⚡"), div: divvy3 },
-  { name: "addButton", desc: "add text/emoji!", func: addButton, div: divvy4 }
+  { name: "addButton", desc: "add text/emoji!", func: addButton, div: divvy4 },
+  { name: "exportButton", desc: "export image", func: exportToImage, div: divvy4}
 
 ];
 
@@ -330,4 +331,23 @@ function addButton() {
   buttonElement.addEventListener("click", () => setBrush(textChosen!));
   buttonElement.innerHTML = textChosen!;
   divvy4.append(buttonElement);
+}
+
+function exportToImage () {
+  const exportCanvas = document.createElement("canvas");
+  exportCanvas.width = 1024;
+  exportCanvas.height = 1024;
+  const eCtx = exportCanvas.getContext("2d")!;
+  const scaleTimesFour = 4;
+  eCtx.scale(scaleTimesFour, scaleTimesFour);
+
+  for (const command of linesAndStickers.list) {
+    command.display(eCtx);
+  }
+  const exportDataUrl = exportCanvas.toDataURL("image/png");
+
+  const downloadLink = document.createElement("a");
+  downloadLink.href = exportDataUrl;
+  downloadLink.download = "drawing.png";
+  downloadLink.click();
 }
