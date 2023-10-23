@@ -32,7 +32,7 @@ body {
   min-height: 100vh;
 }
 
-canvas{
+canvas {
   border-radius: 30px;
   border: 2px solid black;
   filter: drop-shadow(rgb(116, 0, 0) 1rem 1rem 10px);
@@ -85,4 +85,12 @@ button:focus-visible {
   button {
     background-color: #f9f9f9;
   }
+}
+
+.hideCursor {
+  cursor: none;
+}
+
+.showCursor {
+  cursor: default;
 }

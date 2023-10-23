@@ -6,6 +6,12 @@ const gameName = "Drawthingy";
 const zero = 0;
 const canvasSize = 256;
 
+//
+//
+// ELEMENTS
+//
+//
+
 document.title = gameName;
 
 const header = document.createElement("h1");
@@ -63,26 +69,49 @@ divvy2.append(thickButton);
 const divvy3 = document.createElement("div");
 app.append(divvy3);
 
-class LineContainer {
-  list: MarkerLine[] = [];
+const fireButton = document.createElement("button");
+fireButton.innerHTML = "🔥";
+divvy3.append(fireButton);
 
-  displayAllLines() {
+const starButton = document.createElement("button");
+starButton.innerHTML = "⭐";
+divvy3.append(starButton);
+
+const zapButton = document.createElement("button");
+zapButton.innerHTML = "⚡";
+divvy3.append(zapButton);
+
+
+//
+//
+// CLASSES
+//
+//
+
+abstract class DisplayCommand { 
+  abstract display(ctx: CanvasRenderingContext2D): void;
+}
+
+class DisplayContainer {
+  list: DisplayCommand[] = [];
+
+  displayAll() {
     ctx.fillStyle = "white";
     ctx.clearRect(zero, zero, canvas.width, canvas.height);
     ctx.fillRect(zero, zero, canvas.width, canvas.height);
 
-    for (const aLine of mouseLines.list) {
-      aLine.display(ctx);
+    for (const lineOrSticker of this.list) {
+      lineOrSticker.display(ctx);
     }
   }
 }
 
-// MarkerLine is our command class.
-class MarkerLine {
+class LineDisplayCommand extends DisplayCommand {
   lines: { x: number; y: number }[] = [];
   thickness: number;
 
   constructor(x: number, y: number) {
+    super();
     this.lines.push({ x, y });
     this.thickness = mediumThickness;
   }
@@ -112,21 +141,36 @@ class MarkerLine {
   }
 }
 
-class CursorData {
-  active: boolean;
-  thickness: number;
+
+
+// class StickerCursorDisplayCommand extends DisplayCommand {
+
+// }
+
+abstract class CursorDisplayCommand extends DisplayCommand{
   x: number;
   y: number;
+  active: boolean;
+
+  constructor(x: number, y: number, active: boolean) {
+    super();
+    this.x = x;
+    this.y = y;
+    this.active = active;
+  }
+}
+
+class LineCursorDisplayCommand extends CursorDisplayCommand {
+  thickness: number;
 
   constructor() {
-    this.x = 0;
-    this.y = 0;
-    this.active = false;
+    super(zero, zero, false);
     this.thickness = mediumThickness;
+    canvas.classList.remove("hideCursor");
   }
 
   display(ctx: CanvasRenderingContext2D) {
-    cursor.thickness = masterThickness;
+    this.thickness = masterThickness;
     const circleStart = 0;
     const circleEnd = 360;
     const reductionRatio = 2;
@@ -143,51 +187,102 @@ class CursorData {
   }
 }
 
+class StickerCursorDisplayCommand extends CursorDisplayCommand {
+  sticker: string;
+
+  constructor(sticker: string) {
+    super(zero, zero, false);
+    this.sticker = sticker;
+    canvas.classList.add("hideCursor");
+  }
+
+  display(ctx: CanvasRenderingContext2D) {
+    const fontSize = 30;
+    const ratio = 2;
+    ctx.font = `${fontSize}px serif`;
+    ctx.fillText(this.sticker, this.x - (fontSize / ratio), this.y + (fontSize / ratio));
+  }
+}
+
+class StickerDisplayCommand extends DisplayCommand {
+  sticker: string;
+  x: number;
+  y: number;
+
+  constructor(sticker: string, x: number, y: number) {
+    super();
+    this.sticker = sticker;
+    this.x = x;
+    this.y = y;
+  }
+
+  display(ctx: CanvasRenderingContext2D) {
+    const fontSize = 30;
+    const ratio = 2;
+    ctx.font = `${fontSize}px serif`;
+    ctx.fillText(this.sticker, this.x - (fontSize / ratio), this.y + (fontSize / ratio));
+  }
+  
+}
+
+//
+//
+// LOGIC
+//
+//
+
 // Make an array of array of mouse points.
-const mouseLines = new LineContainer();
-const undoRedoStack = new LineContainer();
+const linesAndStickers = new DisplayContainer();
+const undoRedoStack = new DisplayContainer();
+
 
 const origin = 0;
-let line: MarkerLine = new MarkerLine(origin, origin);
+let line: LineDisplayCommand = new LineDisplayCommand(origin, origin);
 // Cursor is pretty much just an arbitrary data structure to store mouse state data.
-const cursor = new CursorData();
+let cursor: CursorDisplayCommand = new LineCursorDisplayCommand();
+
+//
+//
+// EVENTS
+//
+//
 
 canvas.addEventListener("drawing-changed", () => {
-  mouseLines.displayAllLines();
+  linesAndStickers.displayAll();
 });
 
 canvas.addEventListener("tool-moved", () => {
-  mouseLines.displayAllLines();
+  linesAndStickers.displayAll();
   cursor.display(ctx);
 });
 
 canvas.addEventListener("mouseout", () => {
-  mouseLines.displayAllLines();
+  linesAndStickers.displayAll();
 });
 
 canvas.addEventListener("mousedown", (e) => {
-  // Setting state and old position
+  // Setting state and position
   cursor.active = true;
+
+  if (cursor instanceof StickerCursorDisplayCommand) return;
 
   cursor.x = e.offsetX;
   cursor.y = e.offsetY;
 
-  line = new MarkerLine(cursor.x, cursor.y);
+  line = new LineDisplayCommand(cursor.x, cursor.y);
   line.thickness = masterThickness;
 
-  mouseLines.list.push(line);
+  linesAndStickers.list.push(line);
   undoRedoStack.list.length = 0;
 
   canvas.dispatchEvent(toolMovedEvent);
-
-  canvas.dispatchEvent(drawingChangedEvent);
 });
 
 canvas.addEventListener("mousemove", (e) => {
   cursor.x = e.offsetX;
   cursor.y = e.offsetY;
 
-  if (cursor.active) {
+  if (cursor.active && cursor instanceof LineCursorDisplayCommand) {
     line.drag(cursor.x, cursor.y);
 
     // begin drawing process
@@ -198,19 +293,24 @@ canvas.addEventListener("mousemove", (e) => {
 });
 
 canvas.addEventListener("mouseup", () => {
-  // resetting state
   cursor.active = false;
+
+  if (cursor instanceof StickerCursorDisplayCommand) {
+    linesAndStickers.list.push(new StickerDisplayCommand(cursor.sticker, cursor.x, cursor.y));
+    canvas.dispatchEvent(toolMovedEvent);
+  }
+  
 });
 
 clearButton.addEventListener("click", () => {
-  mouseLines.list.length = 0;
+  linesAndStickers.list.length = 0;
   undoRedoStack.list.length = 0;
   canvas.dispatchEvent(drawingChangedEvent);
 });
 
 undoButton.addEventListener("click", () => {
-  if (mouseLines.list.length) {
-    const poppedLine = mouseLines.list.pop();
+  if (linesAndStickers.list.length) {
+    const poppedLine = linesAndStickers.list.pop();
     undoRedoStack.list.push(poppedLine!);
     canvas.dispatchEvent(drawingChangedEvent);
   }
@@ -219,7 +319,7 @@ undoButton.addEventListener("click", () => {
 redoButton.addEventListener("click", () => {
   if (undoRedoStack.list.length) {
     const pushedLine = undoRedoStack.list.pop()!;
-    mouseLines.list.push(pushedLine);
+    linesAndStickers.list.push(pushedLine);
     canvas.dispatchEvent(drawingChangedEvent);
   }
 });
@@ -227,25 +327,32 @@ redoButton.addEventListener("click", () => {
 thinButton.addEventListener("click", () => {
   if (line) {
     masterThickness = thinThickness;
+    cursor = new LineCursorDisplayCommand();
   }
 });
 
 mediumButton.addEventListener("click", () => {
   if (line) {
     masterThickness = mediumThickness;
+    cursor = new LineCursorDisplayCommand();
   }
 });
 
 thickButton.addEventListener("click", () => {
   if (line) {
     masterThickness = thickThickness;
+    cursor = new LineCursorDisplayCommand();
   }
 });
 
-// Try to switch to single arrays of classes to mitigate shitty garbage collection?
-// Push and pop
+fireButton.addEventListener("click", () => {
+  cursor = new StickerCursorDisplayCommand(fireButton.innerHTML);
+});
 
-// Your dispatchEvent (drawing changed) should just be a function now going through all of the lines.
-// You can have a line container for your regular lines, and a line container for your undoRedoStack.
+starButton.addEventListener("click", () => {
+  cursor = new StickerCursorDisplayCommand(starButton.innerHTML);
+});
 
-// Inside each line
+zapButton.addEventListener("click", () => {
+  cursor = new StickerCursorDisplayCommand(zapButton.innerHTML);
+});
