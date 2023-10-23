@@ -18,15 +18,12 @@ const header = document.createElement("h1");
 header.innerHTML = gameName;
 app.append(header);
 
-const divvy = document.createElement("div");
-app.append(divvy);
-
 const canvas = document.createElement("canvas");
 const ctx = canvas.getContext("2d")!;
 ctx.canvas.width = 256;
 ctx.canvas.height = 256;
 canvas.classList.add("canvas");
-divvy.append(canvas);
+app.append(canvas);
 ctx.fillStyle = "white";
 ctx.fillRect(zero, zero, canvasSize, canvasSize);
 
@@ -38,55 +35,46 @@ let masterThickness = mediumThickness;
 
 const drawingChangedEvent: Event = new Event("drawing-changed");
 const toolMovedEvent: Event = new Event("tool-moved");
-
-const clearButton = document.createElement("button");
-clearButton.innerHTML = "clear";
-app.append(clearButton);
-
-const undoButton = document.createElement("button");
-undoButton.innerHTML = "undo";
-app.append(undoButton);
-
-const redoButton = document.createElement("button");
-redoButton.innerHTML = "redo";
-app.append(redoButton);
-
+const divvy = document.createElement("div");
 const divvy2 = document.createElement("div");
-app.append(divvy2);
-
-const thinButton = document.createElement("button");
-thinButton.innerHTML = "thin";
-divvy2.append(thinButton);
-
-const mediumButton = document.createElement("button");
-mediumButton.innerHTML = "medium";
-divvy2.append(mediumButton);
-
-const thickButton = document.createElement("button");
-thickButton.innerHTML = "thick";
-divvy2.append(thickButton);
-
 const divvy3 = document.createElement("div");
-app.append(divvy3);
+const divvy4 = document.createElement("div");
+app.append(divvy, divvy2, divvy3, divvy4);
 
-const fireButton = document.createElement("button");
-fireButton.innerHTML = "🔥";
-divvy3.append(fireButton);
 
-const starButton = document.createElement("button");
-starButton.innerHTML = "⭐";
-divvy3.append(starButton);
+const buttonList: Button[] = [
+  { name: "clearButton", desc: "clear", func: clearCanvas, div: divvy },
+  { name: "undoButton", desc: "undo", func: undoAction, div: divvy },
+  { name: "redoButton", desc: "redo", func: redoAction, div: divvy },
+  { name: "thinButton", desc: "thin", func: () => setBrush(thinThickness), div: divvy2 },
+  { name: "mediumButton", desc: "med", func: () => setBrush(mediumThickness), div: divvy2 },
+  { name: "thickButton", desc: "thick", func: () => setBrush(thickThickness), div: divvy2 },
+  { name: "fireButton", desc: "🔥", func: () => setBrush("🔥"), div: divvy3 },
+  { name: "starButton", desc: "⭐", func: () => setBrush("⭐"), div: divvy3 },
+  { name: "zapButton", desc: "⚡", func: () => setBrush("⚡"), div: divvy3 },
+  { name: "addButton", desc: "add text/emoji!", func: addButton, div: divvy4 }
 
-const zapButton = document.createElement("button");
-zapButton.innerHTML = "⚡";
-divvy3.append(zapButton);
+];
 
+for (const button of buttonList) {
+  const buttonElement = document.createElement("button");
+  buttonElement.addEventListener("click", button.func.bind(this));
+  buttonElement.innerHTML = button.desc;
+  button.div.append(buttonElement);
+}
 
 //
 //
 // CLASSES
 //
 //
+
+interface Button {
+  name: string;
+  desc: string;
+  func(): void;
+  div: HTMLDivElement;
+}
 
 abstract class DisplayCommand { 
   abstract display(ctx: CanvasRenderingContext2D): void;
@@ -197,6 +185,7 @@ class StickerCursorDisplayCommand extends CursorDisplayCommand {
   }
 
   display(ctx: CanvasRenderingContext2D) {
+    ctx.fillStyle = "black";
     const fontSize = 30;
     const ratio = 2;
     ctx.font = `${fontSize}px serif`;
@@ -217,6 +206,7 @@ class StickerDisplayCommand extends DisplayCommand {
   }
 
   display(ctx: CanvasRenderingContext2D) {
+    ctx.fillStyle = "black";
     const fontSize = 30;
     const ratio = 2;
     ctx.font = `${fontSize}px serif`;
@@ -302,57 +292,42 @@ canvas.addEventListener("mouseup", () => {
   
 });
 
-clearButton.addEventListener("click", () => {
+function clearCanvas() {
   linesAndStickers.list.length = 0;
   undoRedoStack.list.length = 0;
   canvas.dispatchEvent(drawingChangedEvent);
-});
+}
 
-undoButton.addEventListener("click", () => {
+function undoAction() {
   if (linesAndStickers.list.length) {
     const poppedLine = linesAndStickers.list.pop();
     undoRedoStack.list.push(poppedLine!);
     canvas.dispatchEvent(drawingChangedEvent);
   }
-});
+}
 
-redoButton.addEventListener("click", () => {
+function redoAction() {
   if (undoRedoStack.list.length) {
     const pushedLine = undoRedoStack.list.pop()!;
     linesAndStickers.list.push(pushedLine);
     canvas.dispatchEvent(drawingChangedEvent);
   }
-});
+}
 
-thinButton.addEventListener("click", () => {
-  if (line) {
-    masterThickness = thinThickness;
+function setBrush(thicknessOrText: number | string) {
+  if (typeof thicknessOrText == "number") {
+    masterThickness = thicknessOrText;
     cursor = new LineCursorDisplayCommand();
+  } else if (typeof thicknessOrText == "string") {
+    cursor = new StickerCursorDisplayCommand(thicknessOrText);
   }
-});
 
-mediumButton.addEventListener("click", () => {
-  if (line) {
-    masterThickness = mediumThickness;
-    cursor = new LineCursorDisplayCommand();
-  }
-});
+}
 
-thickButton.addEventListener("click", () => {
-  if (line) {
-    masterThickness = thickThickness;
-    cursor = new LineCursorDisplayCommand();
-  }
-});
-
-fireButton.addEventListener("click", () => {
-  cursor = new StickerCursorDisplayCommand(fireButton.innerHTML);
-});
-
-starButton.addEventListener("click", () => {
-  cursor = new StickerCursorDisplayCommand(starButton.innerHTML);
-});
-
-zapButton.addEventListener("click", () => {
-  cursor = new StickerCursorDisplayCommand(zapButton.innerHTML);
-});
+function addButton() {
+  const textChosen = prompt("Enter a text/emoji value here:", "🤡");
+  const buttonElement = document.createElement("button");
+  buttonElement.addEventListener("click", () => setBrush(textChosen!));
+  buttonElement.innerHTML = textChosen!;
+  divvy4.append(buttonElement);
+}
