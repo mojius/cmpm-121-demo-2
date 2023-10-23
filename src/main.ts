@@ -27,9 +27,9 @@ app.append(canvas);
 ctx.fillStyle = "white";
 ctx.fillRect(zero, zero, canvasSize, canvasSize);
 
-const thinThickness = 1;
-const mediumThickness = 5;
-const thickThickness = 10;
+const thinThickness = 3;
+const mediumThickness = 6.5;
+const thickThickness = 12;
 
 let masterThickness = mediumThickness;
 
@@ -39,7 +39,8 @@ const divvy = document.createElement("div");
 const divvy2 = document.createElement("div");
 const divvy3 = document.createElement("div");
 const divvy4 = document.createElement("div");
-app.append(divvy, divvy2, divvy3, divvy4);
+const divvy5 = document.createElement("div");
+app.append(divvy, divvy2, divvy3, divvy4, divvy5);
 
 
 const buttonList: Button[] = [
@@ -330,7 +331,8 @@ function addButton() {
   const buttonElement = document.createElement("button");
   buttonElement.addEventListener("click", () => setBrush(textChosen!));
   buttonElement.innerHTML = textChosen!;
-  divvy4.append(buttonElement);
+  divvy5.append(buttonElement);
+  cursor = new StickerCursorDisplayCommand(textChosen!);
 }
 
 function exportToImage () {
