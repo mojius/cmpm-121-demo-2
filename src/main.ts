@@ -32,6 +32,9 @@ const mediumThickness = 6.5;
 const thickThickness = 12;
 
 let masterThickness = mediumThickness;
+let masterRotation = 0;
+const masterFontSize = 30;
+let masterLineColor = getRandomColor();
 
 const drawingChangedEvent: Event = new Event("drawing-changed");
 const toolMovedEvent: Event = new Event("tool-moved");
@@ -41,7 +44,6 @@ const divvy3 = document.createElement("div");
 const divvy4 = document.createElement("div");
 const divvy5 = document.createElement("div");
 app.append(divvy, divvy2, divvy3, divvy4, divvy5);
-
 
 const buttonList: Button[] = [
   { name: "clearButton", desc: "clear", func: clearCanvas, div: divvy },
@@ -54,7 +56,7 @@ const buttonList: Button[] = [
   { name: "starButton", desc: "⭐", func: () => setBrush("⭐"), div: divvy3 },
   { name: "zapButton", desc: "⚡", func: () => setBrush("⚡"), div: divvy3 },
   { name: "addButton", desc: "add text/emoji!", func: addButton, div: divvy4 },
-  { name: "exportButton", desc: "export image", func: exportToImage, div: divvy4}
+  { name: "exportButton", desc: "export image", func: exportToImage, div: divvy4 }
 
 ];
 
@@ -78,12 +80,12 @@ interface Button {
   div: HTMLDivElement;
 }
 
-abstract class DisplayCommand { 
+abstract class Command {
   abstract display(ctx: CanvasRenderingContext2D): void;
 }
 
 class DisplayContainer {
-  list: DisplayCommand[] = [];
+  list: Command[] = [];
 
   displayAll() {
     ctx.fillStyle = "white";
@@ -96,14 +98,16 @@ class DisplayContainer {
   }
 }
 
-class LineDisplayCommand extends DisplayCommand {
+class LineCommand extends Command {
   lines: { x: number; y: number }[] = [];
   thickness: number;
+  color: string;
 
-  constructor(x: number, y: number) {
+  constructor(x: number, y: number, color: string) {
     super();
     this.lines.push({ x, y });
     this.thickness = mediumThickness;
+    this.color = color;
   }
 
   display(ctx: CanvasRenderingContext2D) {
@@ -117,6 +121,8 @@ class LineDisplayCommand extends DisplayCommand {
     for (const { x, y } of rest) {
       ctx.lineTo(x, y);
     }
+    ctx.strokeStyle = this.color;
+    ctx.lineCap = "round";
     ctx.stroke();
   }
 
@@ -133,11 +139,11 @@ class LineDisplayCommand extends DisplayCommand {
 
 
 
-// class StickerCursorDisplayCommand extends DisplayCommand {
+// class StickerCursorCommand extends Command {
 
 // }
 
-abstract class CursorDisplayCommand extends DisplayCommand{
+abstract class CursorCommand extends Command {
   x: number;
   y: number;
   active: boolean;
@@ -150,7 +156,7 @@ abstract class CursorDisplayCommand extends DisplayCommand{
   }
 }
 
-class LineCursorDisplayCommand extends CursorDisplayCommand {
+class LineCursorCommand extends CursorCommand {
   thickness: number;
 
   constructor() {
@@ -164,7 +170,7 @@ class LineCursorDisplayCommand extends CursorDisplayCommand {
     const circleStart = 0;
     const circleEnd = 360;
     const reductionRatio = 2;
-    ctx.fillStyle = "black";
+    ctx.fillStyle = masterLineColor;
     ctx.beginPath();
     ctx.arc(
       this.x,
@@ -177,44 +183,64 @@ class LineCursorDisplayCommand extends CursorDisplayCommand {
   }
 }
 
-class StickerCursorDisplayCommand extends CursorDisplayCommand {
+canvas.addEventListener("wheel", (e) => {
+
+  masterRotation += e.deltaY;
+  canvas.dispatchEvent(toolMovedEvent);
+});
+
+class StickerCursorCommand extends CursorCommand {
   sticker: string;
+  rotation: number;
 
   constructor(sticker: string) {
     super(zero, zero, false);
     this.sticker = sticker;
     canvas.classList.add("hideCursor");
+    this.rotation = 0;
   }
 
   display(ctx: CanvasRenderingContext2D) {
+    // This one is set immediately to the master rotation.
     ctx.fillStyle = "black";
-    const fontSize = 30;
     const ratio = 2;
-    ctx.font = `${fontSize}px serif`;
-    ctx.fillText(this.sticker, this.x - (fontSize / ratio), this.y + (fontSize / ratio));
+    const degreesToRadiansDenominator = 180;
+    ctx.save();
+    ctx.translate(this.x + (masterFontSize / ratio), this.y + (masterFontSize / ratio));
+    ctx.rotate((masterRotation * Math.PI) / degreesToRadiansDenominator);
+    ctx.font = `${masterFontSize}px monospace`;
+    ctx.fillText(this.sticker, zero - (masterFontSize / ratio), zero + (masterFontSize / ratio));
+    ctx.restore();
   }
 }
 
-class StickerDisplayCommand extends DisplayCommand {
+class StickerCommand extends Command {
   sticker: string;
   x: number;
   y: number;
+  rotation: number;
 
   constructor(sticker: string, x: number, y: number) {
     super();
     this.sticker = sticker;
     this.x = x;
     this.y = y;
+    this.rotation = 0;
   }
 
   display(ctx: CanvasRenderingContext2D) {
+    // This one draws from its own font size, pre-set to the master.
     ctx.fillStyle = "black";
-    const fontSize = 30;
     const ratio = 2;
-    ctx.font = `${fontSize}px serif`;
-    ctx.fillText(this.sticker, this.x - (fontSize / ratio), this.y + (fontSize / ratio));
+    const degreesToRadiansDenominator = 180;
+    ctx.save();
+    ctx.translate(this.x + (masterFontSize / ratio), this.y + (masterFontSize / ratio));
+    ctx.rotate((this.rotation * Math.PI) / degreesToRadiansDenominator);
+    ctx.font = `${masterFontSize}px monospace`;
+    ctx.fillText(this.sticker, zero - (masterFontSize / ratio), zero + (masterFontSize / ratio));
+    ctx.restore();
   }
-  
+
 }
 
 //
@@ -229,9 +255,9 @@ const undoRedoStack = new DisplayContainer();
 
 
 const origin = 0;
-let line: LineDisplayCommand = new LineDisplayCommand(origin, origin);
+let line: LineCommand = new LineCommand(origin, origin, "black");
 // Cursor is pretty much just an arbitrary data structure to store mouse state data.
-let cursor: CursorDisplayCommand = new LineCursorDisplayCommand();
+let cursor: CursorCommand = new LineCursorCommand();
 
 //
 //
@@ -256,13 +282,14 @@ canvas.addEventListener("mousedown", (e) => {
   // Setting state and position
   cursor.active = true;
 
-  if (cursor instanceof StickerCursorDisplayCommand) return;
+  if (cursor instanceof StickerCursorCommand) return;
 
   cursor.x = e.offsetX;
   cursor.y = e.offsetY;
 
-  line = new LineDisplayCommand(cursor.x, cursor.y);
+  line = new LineCommand(cursor.x, cursor.y, masterLineColor);
   line.thickness = masterThickness;
+  line.color = masterLineColor;
 
   linesAndStickers.list.push(line);
   undoRedoStack.list.length = 0;
@@ -274,7 +301,7 @@ canvas.addEventListener("mousemove", (e) => {
   cursor.x = e.offsetX;
   cursor.y = e.offsetY;
 
-  if (cursor.active && cursor instanceof LineCursorDisplayCommand) {
+  if (cursor.active && cursor instanceof LineCursorCommand) {
     line.drag(cursor.x, cursor.y);
 
     // begin drawing process
@@ -287,12 +314,17 @@ canvas.addEventListener("mousemove", (e) => {
 canvas.addEventListener("mouseup", () => {
   cursor.active = false;
 
-  if (cursor instanceof StickerCursorDisplayCommand) {
-    linesAndStickers.list.push(new StickerDisplayCommand(cursor.sticker, cursor.x, cursor.y));
+  if (cursor instanceof StickerCursorCommand) {
+    const sticker = new StickerCommand(cursor.sticker, cursor.x, cursor.y);
+    sticker.rotation = masterRotation;
+    linesAndStickers.list.push(sticker);
+
     canvas.dispatchEvent(toolMovedEvent);
   }
-  
+
 });
+
+
 
 function clearCanvas() {
   linesAndStickers.list.length = 0;
@@ -319,9 +351,10 @@ function redoAction() {
 function setBrush(thicknessOrText: number | string) {
   if (typeof thicknessOrText == "number") {
     masterThickness = thicknessOrText;
-    cursor = new LineCursorDisplayCommand();
+    masterLineColor = getRandomColor();
+    cursor = new LineCursorCommand();
   } else if (typeof thicknessOrText == "string") {
-    cursor = new StickerCursorDisplayCommand(thicknessOrText);
+    cursor = new StickerCursorCommand(thicknessOrText);
   }
 
 }
@@ -332,16 +365,20 @@ function addButton() {
   buttonElement.addEventListener("click", () => setBrush(textChosen!));
   buttonElement.innerHTML = textChosen!;
   divvy5.append(buttonElement);
-  cursor = new StickerCursorDisplayCommand(textChosen!);
+  cursor = new StickerCursorCommand(textChosen!);
 }
 
-function exportToImage () {
+function exportToImage() {
   const exportCanvas = document.createElement("canvas");
   exportCanvas.width = 1024;
   exportCanvas.height = 1024;
   const eCtx = exportCanvas.getContext("2d")!;
   const scaleTimesFour = 4;
   eCtx.scale(scaleTimesFour, scaleTimesFour);
+
+  eCtx.fillStyle = "white";
+  eCtx.fillRect(zero, zero, canvasSize, canvasSize);
+
 
   for (const command of linesAndStickers.list) {
     command.display(eCtx);
@@ -352,4 +389,10 @@ function exportToImage () {
   downloadLink.href = exportDataUrl;
   downloadLink.download = "drawing.png";
   downloadLink.click();
+}
+
+function getRandomColor(): string {
+  const possibleRGBCombinations = 16777215;
+  const toHex = 16;
+  return "#" + Math.floor(Math.random() * possibleRGBCombinations).toString(toHex);
 }
